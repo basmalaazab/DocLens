@@ -1,0 +1,12 @@
+// ============================================================
+//  rag_frontend/config.js.example
+//
+//  Copy this file to config.js and set your backend URL:
+//    cp config.js.example config.js
+//
+//  config.js is loaded by index.html BEFORE app.js so that
+//  window.API_BASE is available to the application.
+//  config.js is listed in .gitignore — never commit it.
+// ============================================================
+
+window.API_BASE = "http://127.0.0.1:8000";

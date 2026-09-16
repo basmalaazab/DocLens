@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeepLearn Assistant</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-mark">D</div>
+      <div>
+        <strong>DeepLearn Assistant</strong>
+        <span>RAG Knowledge Assistant</span>
+      </div>
+    </div>
+    <div class="status" id="status"><span class="status-dot"></span> Checking backend...</div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <p class="eyebrow">AI-POWERED DOCUMENT ASSISTANT</p>
+      <h1>Ask your documents.<br><span>Get grounded answers.</span></h1>
+      <p class="hero-copy">Search your indexed knowledge base with RAG, and optionally attach an image of a page, table, or diagram for vision-assisted questions.</p>
+    </section>
+
+    <section id="query-panel" class="panel">
+      <div class="panel-heading">
+        <div>
+          <p class="section-label">ASSISTANT INTERFACE</p>
+          <h2>Ask a question</h2>
+        </div>
+        <span class="api-badge" id="api-badge">POST /query</span>
+      </div>
+
+      <form id="assistant-form">
+        <label for="question">Your question</label>
+        <textarea id="question" rows="4" placeholder="e.g. What is backpropagation? or What does this table/diagram show?"></textarea>
+
+        <div class="image-upload-section">
+          <label>Attach Image (Optional)</label>
+          <label class="dropzone" id="dropzone" for="image-input">
+            <input id="image-input" type="file" accept="image/png,image/jpeg,image/jpg,image/webp">
+            <div class="upload-icon">📷</div>
+            <strong>Click to browse or drop an image here (Optional)</strong>
+            <span>PNG, JPG or WEBP</span>
+          </label>
+          <div id="preview-wrap" class="preview-wrap hidden">
+            <img id="preview" alt="Selected image preview">
+            <button type="button" class="remove-btn" id="remove-image">✕ Remove attached image</button>
+          </div>
+        </div>
+
+        <div class="form-footer">
+          <span id="footer-note">Answers are grounded in indexed documents + attached image.</span>
+          <button class="primary-btn" type="submit">Ask Assistant <span>→</span></button>
+        </div>
+      </form>
+    </section>
+
+    <section id="loading" class="loading hidden">
+      <div class="spinner"></div>
+      <span>Thinking and retrieving relevant context...</span>
+    </section>
+
+    <section id="result" class="result hidden">
+      <div class="result-header">
+        <div>
+          <p class="section-label">RESULT</p>
+          <h2>Assistant response</h2>
+        </div>
+        <button id="copy-btn" class="secondary-btn">Copy answer</button>
+      </div>
+
+      <div class="answer-card">
+        <div class="answer-icon">✦</div>
+        <div id="answer" class="answer"></div>
+      </div>
+
+      <div id="vision-info" class="vision-info hidden">
+        <div class="info-card">
+          <span class="info-title">Content type</span>
+          <strong id="content-type">—</strong>
+        </div>
+        <div class="info-card wide">
+          <span class="info-title">Detected elements</span>
+          <div id="detected-elements">—</div>
+        </div>
+      </div>
+
+      <div class="sources">
+        <div class="sources-title">
+          <h3>Sources</h3>
+          <span id="source-count">0</span>
+        </div>
+        <div id="source-list"></div>
+      </div>
+    </section>
+
+    <section class="how-it-works">
+      <div>
+        <p class="section-label">HOW IT WORKS</p>
+        <h2>One unified interface. RAG & Vision.</h2>
+      </div>
+      <div class="steps">
+        <div><b>01</b><span><strong>Retrieve</strong>Find relevant document chunks from vector store.</span></div>
+        <div><b>02</b><span><strong>Vision (Optional)</strong>For attached images, YOLO and RapidOCR extract the content.</span></div>
+        <div><b>03</b><span><strong>Generate</strong>Ollama creates a grounded answer with exact citations.</span></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>DeepLearn Assistant · RAG + Vision</footer>
+  <!-- config.js sets window.API_BASE (gitignored — copy config.js.example → config.js) -->
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Chroma / databases
+chroma_db/
+chroma/
+*.sqlite
+*.sqlite3
+*.db
+
+# Uploaded/generated files
+uploads/
+outputs/
+tmp/
+temp/
+
+# ML model files
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# PDF documents
+*.pdf
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Build
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
