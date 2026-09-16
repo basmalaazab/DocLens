@@ -1,89 +1,45 @@
 # RAG-Powered Document Assistant
 
-A Retrieval-Augmented Generation (RAG) system for answering questions from a collection of Deep Learning documents. The system combines document processing, semantic retrieval, vector search, and a local Large Language Model (LLM) to generate grounded answers with source and page references.
+## 1. Overview
 
-The project also includes an Extended Track computer vision component that allows users to upload or capture images of document pages, diagrams, and tables. YOLO-based document layout detection and OCR are used to extract useful information from the image and combine it with the user's question before retrieval.
+RAG-Powered Document Assistant is an AI-powered question-answering system that uses Retrieval-Augmented Generation (RAG) to answer questions from a collection of Deep Learning documents.
 
----
+The system combines document processing, semantic search, vector databases, and a local Large Language Model (LLM) to provide answers grounded in the provided documents.
 
-## 1. Project Overview
+An extended Computer Vision component is also included to analyze uploaded document images using YOLO-based document layout detection and OCR, and incorporate the detected content into the RAG pipeline.
 
-The system follows a complete RAG pipeline:
+The project is divided into three main parts:
 
-```text
-PDF Documents
-     |
-     v
-PDF Parsing with PyPDF
-     |
-     v
-Page-level Documents
-     |
-     v
-Recursive Character Chunking
-     |
-     v
-Sentence Transformer Embeddings
-     |
-     v
-ChromaDB Vector Store
-     |
-     v
-Semantic Retrieval
-     |
-     v
-Context + User Question
-     |
-     v
-Grounded Prompt
-     |
-     v
-Llama 3.2 3B via Ollama
-     |
-     v
-Answer + Sources
-```
-
-For image-based queries, the extended pipeline is:
-
-```text
-Image Upload / Camera
-        |
-        v
-YOLO DocLayNet
-        |
-        +------------------+
-        |                  |
-        v                  v
-Document Layout       Text Regions
-Detection                  |
-        |                  v
-        |                 OCR
-        |                  |
-        +--------+---------+
-                 |
-                 v
-       Image Description
-                 |
-                 v
-     Combined User Query
-                 |
-                 v
-       ChromaDB Retrieval
-                 |
-                 v
-      Grounded LLM Answer
-```
+- **Notebook:** Data processing, chunking, embeddings, vector store creation, retrieval experiments, evaluation, and the Computer Vision extension.
+- **Backend:** FastAPI service that loads the persisted vector store and serves grounded queries.
+- **Frontend:** Web interface for interacting with the RAG assistant.
 
 ---
 
-## 2. Domain and Dataset
+## 2. Project Objectives
+
+The project aims to build a complete RAG-based AI application capable of:
+
+- Processing multiple PDF documents.
+- Splitting documents into meaningful text chunks.
+- Generating semantic embeddings.
+- Storing embeddings in a persistent vector database.
+- Retrieving relevant document passages for a user query.
+- Generating grounded answers using a local LLM.
+- Providing source and page information for retrieved content.
+- Evaluating answer correctness and groundedness.
+- Handling questions that are outside the provided document collection.
+- Extending the system with document image analysis using Computer Vision and OCR.
+
+---
+
+## 3. Domain and Dataset
 
 ### Domain
 
 The selected domain is **Deep Learning**.
 
-The document collection contains educational material covering topics such as:
+The knowledge base consists of educational Deep Learning materials covering topics such as:
 
 - Neural networks
 - Backpropagation
@@ -93,7 +49,7 @@ The document collection contains educational material covering topics such as:
 - Recurrent Neural Networks
 - Dropout
 - Vanishing gradients
-- Self-attention
+- Attention mechanisms
 - Transformers
 - Overfitting
 
@@ -101,699 +57,135 @@ The document collection contains educational material covering topics such as:
 
 The RAG pipeline was built using three PDF documents:
 
-- `book.pdf`
-- `UnderstandingDeepLearning_02_09_26_C.pdf`
-- `dive_into_deep_learning.pdf`
+1. `book.pdf`
+2. `UnderstandingDeepLearning_02_09_26_C.pdf`
+3. `dive_into_deep_learning.pdf`
 
-The PDFs are parsed page by page using `pypdf`.
+The documents were parsed page-by-page, and each extracted page was stored with metadata identifying its source document and page number.
 
-For each page, the system stores:
+Empty pages were removed before chunking.
+
+---
+
+## 4. RAG Pipeline
+
+The complete RAG pipeline follows this workflow:
 
 ```text
-source
-page
-text
+PDF Documents
+      |
+      v
+Document Loading
+      |
+      v
+Page-Level Parsing
+      |
+      v
+Text Chunking
+      |
+      v
+Sentence-Transformer Embeddings
+      |
+      v
+ChromaDB Vector Store
+      |
+      v
+Semantic Retrieval
+      |
+      v
+Retrieved Context
+      |
+      v
+Grounded Prompt
+      |
+      v
+Llama 3.2 LLM
+      |
+      v
+Answer + Sources
 ```
-
-Empty pages are ignored before chunking.
 
 ---
 
-## 3. Document Processing
+## 5. Document Processing
 
-PDF documents are loaded using `pypdf`.
+The documents were loaded using `pypdf`.
 
-Each page is converted into a LangChain `Document` with metadata containing the original filename and page number.
+Each PDF was processed page-by-page so that page information could be preserved as metadata.
 
-Example metadata:
+Each document chunk contains metadata including:
 
-```python
-{
-    "source": "book.pdf",
-    "page": 98
-}
-```
+- Source document
+- Page number
 
-This metadata is preserved throughout the pipeline so that retrieved chunks can be traced back to their original document and page.
+This metadata is later used to provide source references with generated answers.
+
+### Document Inspection
+
+The notebook performs document inspection before building the vector database, including:
+
+- Detecting available PDF files.
+- Counting documents.
+- Parsing pages.
+- Identifying empty pages.
+- Removing unusable page content.
+- Preserving document and page metadata.
 
 ---
 
-## 4. Chunking Strategy
+## 6. Chunking Strategy
 
 The project uses LangChain's `RecursiveCharacterTextSplitter`.
 
-Configuration:
-
-| Parameter | Value |
-|---|---:|
-| Chunk size | 1000 characters |
-| Chunk overlap | 200 characters |
-
-The recursive splitter was selected because it attempts to preserve meaningful text boundaries while dividing long document pages into smaller retrieval units.
-
-The overlap helps preserve context between neighboring chunks and reduces the chance of losing information at chunk boundaries.
-
----
-
-## 5. Embeddings
-
-The project uses the Sentence Transformers model:
-
 ```text
-all-MiniLM-L6-v2
+Chunk size: 1000 characters
+Chunk overlap: 200 characters
 ```
 
-The model converts document chunks and user questions into vector representations.
+### Why this strategy?
 
-Semantic similarity between the question and document chunks is then used to retrieve the most relevant context.
+A chunk size of 1000 characters provides enough surrounding context for most Deep Learning explanations while keeping retrieved passages reasonably focused.
+
+A 200-character overlap helps preserve context between adjacent chunks and reduces the chance of losing information that crosses chunk boundaries.
+
+The recursive splitting strategy also attempts to split text at natural boundaries before falling back to smaller separators.
 
 ---
 
-## 6. Vector Database
+## 7. Embeddings
 
-The vector store is implemented using **ChromaDB**.
-
-Configuration:
+The project uses:
 
 ```text
-Database: ChromaDB
+SentenceTransformer
+Model: all-MiniLM-L6-v2
+```
+
+The embedding model converts each text chunk into a numerical vector representing its semantic meaning.
+
+This allows the system to retrieve passages based on semantic similarity rather than exact keyword matching.
+
+---
+
+## 8. Vector Database
+
+The project uses **ChromaDB** as the vector database.
+
+The collection is:
+
+```text
 Collection: deep_learning_docs
-Persistence: /content/vector_store
 ```
 
-The vector store is persisted to disk so that the backend can load the existing embeddings instead of rebuilding the entire index for every request.
+The vector store is persisted to disk so that it can be reused by the backend without rebuilding the embeddings every time the application starts.
 
-The final collection contains:
+The final vector collection contains:
 
 ```text
-5666 chunks
+5,666 chunks
 ```
 
----
-
-## 7. Retrieval
-
-For each user question, the system performs semantic retrieval against the ChromaDB collection.
-
-The retrieval function returns:
-
-```python
-{
-    "text": "...",
-    "source": "document.pdf",
-    "page": 123
-}
-```
-
-The top relevant chunks are then passed to the generation stage.
-
-Example:
-
-```python
-retrieved = retrieve_documents(
-    "What is backpropagation?",
-    n_results=5
-)
-```
-
-The retrieved source and page information are preserved and returned with the generated answer.
-
----
-
-## 8. Grounded Generation
-
-The generation component uses a local LLM:
-
-```text
-Llama 3.2 3B
-```
-
-The model is accessed through **Ollama**.
-
-The prompt explicitly instructs the model to:
-
-1. Use only the retrieved context.
-2. Avoid unsupported information.
-3. State when the required information is not available.
-4. Provide a clear answer.
-5. Include relevant source and page references.
-
-This reduces the risk of generating answers that are unrelated to the indexed documents.
-
-The generation flow is:
-
-```text
-User Question
-      |
-      v
-Retrieve Relevant Chunks
-      |
-      v
-Build Grounded Prompt
-      |
-      v
-Llama 3.2 3B
-      |
-      v
-Answer + Source References
-```
-
----
-
-# 9. Evaluation
-
-The RAG pipeline was evaluated using **10 predefined questions** covering major Deep Learning topics.
-
-### Evaluation Questions
-
-1. What is backpropagation?
-2. What is gradient descent?
-3. What is the purpose of activation functions in neural networks?
-4. How does a convolutional neural network work?
-5. What is the difference between CNNs and RNNs?
-6. What is dropout and why is it used?
-7. What is the vanishing gradient problem?
-8. What is self-attention?
-9. What is a Transformer?
-10. What is overfitting in deep learning?
-
-### Evaluation Criteria
-
-Each generated answer was manually reviewed according to:
-
-- **Correctness** — whether the answer accurately addresses the question according to the retrieved document context.
-- **Groundedness** — whether the answer is supported by the retrieved context without introducing unsupported claims.
-
-### Results
-
-| Metric | Result |
-|---|---:|
-| Questions evaluated | 10 |
-| Reviewed questions | 10/10 |
-| Correctness | 90% |
-| Groundedness | 90% |
-
-The results indicate that 9 out of the 10 evaluated responses were marked both correct and grounded.
-
-One evaluation case, the CNN vs. RNN comparison, was marked incorrect and not grounded because the retrieved context did not explicitly provide enough information to answer the comparison. This represents a retrieval/context limitation rather than treating unsupported model output as correct.
-
-### Example Evaluation
-
-| Question | Result | Grounded |
-|---|---|---|
-| What is backpropagation? | Correct | Grounded |
-| What is gradient descent? | Correct | Grounded |
-| What is the purpose of activation functions? | Correct | Grounded |
-| How does a CNN work? | Correct | Grounded |
-| What is the difference between CNNs and RNNs? | Incorrect | Not grounded |
-| What is dropout and why is it used? | Correct | Grounded |
-| What is the vanishing gradient problem? | Correct | Grounded |
-| What is self-attention? | Correct | Grounded |
-| What is a Transformer? | Correct | Grounded |
-| What is overfitting in deep learning? | Correct | Grounded |
-
----
-
-# 10. Failure Case Analysis
-
-Additional questions outside the document domain were used to examine how the system behaves when the required information is not available.
-
-Example questions include:
-
-```text
-What is the capital of France?
-What is the boiling point of water at sea level?
-How do I repair a car engine?
-```
-
-These tests are intended to identify cases where retrieval provides weak or unrelated context.
-
-The main mitigation is the grounding instruction in the generation prompt:
-
-```text
-Answer the user's question using ONLY the provided context.
-```
-
-The model is also instructed to explicitly state when the information is not available in the provided documents.
-
-This makes unsupported generation a visible failure case that can be identified during evaluation.
-
----
-
-# 11. Computer Vision Extension
-
-The project implements the Extended Track using:
-
-- YOLO
-- DocLayNet
-- OCR
-- OpenCV
-- Tesseract
-- Gradio
-
-The selected YOLO model is trained for document layout analysis:
-
-```text
-yolo-doclaynet
-```
-
-It can identify document elements such as:
-
-- Text
-- Title
-- Caption
-- List-item
-- Section-header
-- Footnote
-- Table
-- Picture
-- Formula
-
-### Image Processing Pipeline
-
-When an image is provided:
-
-```text
-Image
- |
- v
-YOLO Document Layout Detection
- |
- +------------------+
- |                  |
- v                  v
-Layout Elements    Text Regions
-                       |
-                       v
-                      OCR
-                       |
-                       v
-              Extracted Text
-                       |
-        +--------------+
-        |
-        v
-Image Description
-        |
-        v
-Question + Image Information
-        |
-        v
-Semantic Retrieval
-        |
-        v
-Grounded Answer
-```
-
----
-
-## 12. OCR
-
-OCR is applied only to regions that YOLO identifies as text-like.
-
-The text labels used for OCR are:
-
-```python
-TEXT_LABELS = {
-    "Text",
-    "Title",
-    "Caption",
-    "List-item",
-    "Section-header",
-    "Footnote"
-}
-```
-
-Table and picture regions are not directly passed through the text OCR pipeline.
-
-This allows the system to focus OCR processing on regions that are expected to contain readable text.
-
----
-
-## 13. Image Content Classification
-
-The image content type is determined from the detected document layout elements.
-
-Possible classifications include:
-
-```text
-table
-diagram
-text
-unknown
-```
-
-For example:
-
-- `Table` detected → `table`
-- `Picture` detected → `diagram`
-- Text-related labels detected → `text`
-
-The classification result is included in the image description used during retrieval.
-
----
-
-## 14. Image-Based RAG
-
-The image information is combined with the user's question before retrieval.
-
-Example:
-
-```python
-combined_query = f"""
-{question}
-
-{image_description}
-"""
-```
-
-The combined query is then passed to the same ChromaDB retrieval pipeline used for normal text questions.
-
-This allows the system to connect visual information with knowledge contained in the indexed Deep Learning documents.
-
-Example use cases:
-
-- Asking what a photographed diagram represents.
-- Explaining a Deep Learning architecture.
-- Asking about a table shown in a document.
-- Asking a question about a photographed page.
-
----
-
-# 15. Frontend
-
-The project includes a web-based frontend for interacting with the assistant.
-
-The frontend provides:
-
-- Question input
-- Answer display
-- Source references
-- Backend API communication
-- Image upload/capture support for the computer vision extension
-- Loading and error handling
-
-The image-based demonstration also uses **Gradio** to provide an upload/camera interface.
-
----
-
-# 16. Backend
-
-The backend is implemented using **FastAPI**.
-
-Main responsibilities:
-
-- Load the persisted vector store.
-- Receive user questions.
-- Retrieve relevant document chunks.
-- Generate grounded answers using Ollama.
-- Return answers and source references.
-- Support the extended image-based pipeline.
-
-### Main API Endpoints
-
-#### `GET /health`
-
-Checks whether the backend is running.
-
-Example:
-
-```bash
-curl http://localhost:8000/health
-```
-
-#### `POST /query`
-
-Receives a user question and returns a generated answer with source information.
-
-Example:
-
-```bash
-curl -X POST "http://localhost:8000/query" ^
-  -H "Content-Type: application/json" ^
-  -d "{\"question\":\"What is backpropagation?\"}"
-```
-
-Example request:
-
-```json
-{
-    "question": "What is backpropagation?"
-}
-```
-
-The response contains the generated answer and the retrieved sources.
-
----
-
-# 17. Technology Stack
-
-| Component | Technology |
-|---|---|
-| Programming Language | Python |
-| Backend | FastAPI |
-| RAG Framework | LangChain |
-| PDF Processing | PyPDF |
-| Text Splitting | RecursiveCharacterTextSplitter |
-| Embeddings | Sentence Transformers |
-| Embedding Model | all-MiniLM-L6-v2 |
-| Vector Database | ChromaDB |
-| LLM | Llama 3.2 3B |
-| Local LLM Runtime | Ollama |
-| Computer Vision | YOLO / DocLayNet |
-| OCR | Tesseract / pytesseract |
-| Image Processing | OpenCV |
-| Image Demo | Gradio |
-| Frontend | HTML, CSS, JavaScript |
-| Testing | Pytest |
-
----
-
-# 18. Project Structure
-
-```text
-rag_powered_assistant/
-│
-├── rag_backend/
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── routes/
-│   │   │       └── query.py
-│   │   ├── core/
-│   │   │   └── config.py
-│   │   ├── schemas/
-│   │   │   └── query.py
-│   │   ├── services/
-│   │   │   ├── retrieval.py
-│   │   │   ├── generation.py
-│   │   │   └── vision.py
-│   │   ├── utils/
-│   │   │   └── logging_config.py
-│   │   └── main.py
-│   │
-│   ├── tests/
-│   │   └── test_query.py
-│   │
-│   ├── requirements.txt
-│   └── README.md
-│
-├── rag_frontend/
-│   └── rag_frontend/
-│       ├── index.html
-│       ├── app.js
-│       ├── style.css
-│       ├── config.js
-│       └── config.js.example
-│
-├── run.bat
-├── .gitignore
-└── README.md
-```
-
-The persisted vector store and raw PDF corpus are treated as generated/source artifacts and should not be committed when they exceed the repository requirements.
-
----
-
-# 19. Environment Variables
-
-Backend configuration is managed through environment variables.
-
-Example:
-
-```env
-OLLAMA_MODEL=llama3.2:3b
-VECTOR_STORE_PATH=./vector_store
-COLLECTION_NAME=deep_learning_docs
-```
-
-Frontend configuration:
-
-```env
-API_BASE_URL=http://localhost:8000
-```
-
-Actual variable names should match the configuration files included in the project.
-
----
-
-# 20. Backend Setup
-
-### 1. Clone the repository
-
-```bash
-git clone <repository-url>
-cd rag_powered_assistant
-```
-
-### 2. Create a virtual environment
-
-```bash
-python -m venv .venv
-```
-
-Windows:
-
-```bash
-.venv\Scripts\activate
-```
-
-### 3. Install backend dependencies
-
-```bash
-cd rag_backend
-pip install -r requirements.txt
-```
-
-### 4. Install and start Ollama
-
-Install Ollama and make sure the Ollama server is running.
-
-Pull the required model:
-
-```bash
-ollama pull llama3.2:3b
-```
-
-### 5. Start the FastAPI backend
-
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-
-The API will be available at:
-
-```text
-http://localhost:8000
-```
-
-FastAPI documentation is available through:
-
-```text
-http://localhost:8000/docs
-```
-
----
-
-# 21. Frontend Setup
-
-Open the frontend directory:
-
-```bash
-cd rag_frontend/rag_frontend
-```
-
-Configure the backend URL in the frontend configuration:
-
-```env
-API_BASE_URL=http://localhost:8000
-```
-
-Then serve the frontend using a local web server.
-
-For example:
-
-```bash
-python -m http.server 5500
-```
-
-The frontend can then communicate with the FastAPI backend.
-
----
-
-# 22. Running the Complete System
-
-The complete application requires:
-
-```text
-Frontend
-   |
-   v
-FastAPI Backend
-   |
-   +----> ChromaDB
-   |
-   +----> Ollama
-            |
-            v
-       Llama 3.2 3B
-```
-
-For image queries:
-
-```text
-Frontend
-   |
-   v
-Image
-   |
-   v
-Vision Pipeline
-   |
-   +----> YOLO
-   |
-   +----> OCR
-   |
-   v
-FastAPI / RAG Pipeline
-   |
-   v
-ChromaDB
-   |
-   v
-Ollama
-```
-
----
-
-# 23. Notebook
-
-The RAG pipeline notebook documents the complete data and retrieval workflow.
-
-It includes:
-
-1. PDF loading and inspection
-2. Page-level extraction
-3. Chunking
-4. Embedding generation
-5. ChromaDB persistence
-6. Retrieval experiments
-7. Prompt construction
-8. Ollama generation
-9. Ten-question evaluation
-10. Failure-case analysis
-11. Vector store export
-12. Computer vision extension
-13. YOLO document layout detection
-14. OCR
-15. Image-based RAG
-
-The notebook is designed to demonstrate the transition from raw documents to a persisted vector store that can be served by the backend.
-
----
-
-# 24. Reproducibility
-
-The main RAG configuration is:
+The notebook also exports the main RAG configuration:
 
 ```json
 {
@@ -806,114 +198,612 @@ The main RAG configuration is:
 }
 ```
 
-The vector store is persisted so the backend can reuse the indexed documents without recomputing embeddings during every application startup.
+---
+
+## 9. Retrieval
+
+For each user question, the system performs semantic similarity search against the ChromaDB collection.
+
+The default retrieval configuration returns the top:
+
+```text
+5 relevant chunks
+```
+
+Each retrieved result contains:
+
+- Text content
+- Source document
+- Page number
+
+The retrieved passages are then passed to the generation component as context.
 
 ---
 
-# 25. Screenshots
+## 10. Grounded Generation
 
-Add screenshots of the running application here before final submission.
-
-Recommended screenshots:
-
-### Main Chat Interface
+The project uses a local Ollama model:
 
 ```text
-[Add screenshot here]
+llama3.2:3b
 ```
 
-### Question and Grounded Answer
+The LLM receives the user's question together with the retrieved document context.
+
+The generation prompt instructs the model to:
+
+- Answer using only the provided context.
+- Avoid unsupported information.
+- State when the required information is not available.
+- Provide a concise answer.
+- Mention relevant source documents and page numbers.
+
+This grounding strategy is designed to reduce unsupported answers and keep responses connected to the document collection.
+
+---
+
+# 11. Evaluation
+
+The RAG system was evaluated using 10 Deep Learning questions.
+
+The evaluation covers topics including:
+
+- Backpropagation
+- Gradient descent
+- Activation functions
+- CNNs
+- CNN vs RNN
+- Dropout
+- Vanishing gradients
+- Self-attention
+- Transformers
+- Overfitting
+
+Each question was manually reviewed for:
+
+- Answer correctness
+- Groundedness in the retrieved context
+
+## Evaluation Results
+
+| Metric | Result |
+|---|---:|
+| Questions evaluated | 10 |
+| Correct answers | 9/10 |
+| Correctness | 90% |
+| Grounded answers | 9/10 |
+| Groundedness | 90% |
+
+The main failure case was the question comparing CNNs and RNNs. The retrieved context did not explicitly contain enough information to support a direct comparison, so the generated answer was considered insufficiently grounded.
+
+This demonstrates the importance of retrieval quality in a RAG system: even when relevant concepts exist in the overall document collection, the answer can fail if the retrieved context does not contain the required information.
+
+---
+
+## 12. Failure Cases and Mitigation
+
+Additional out-of-domain questions were tested, including questions about:
+
+- The capital of France.
+- The boiling point of water at sea level.
+- Repairing a car engine.
+
+These questions are outside the Deep Learning document collection.
+
+The intended behavior is for the assistant to state that the requested information is not available in the provided documents instead of relying on unsupported external knowledge.
+
+### Mitigation
+
+The generation prompt explicitly instructs the LLM not to use information that is not supported by the retrieved context.
+
+Future improvements could include:
+
+- Retrieval confidence thresholds.
+- Better query rewriting.
+- Hybrid keyword + semantic retrieval.
+- Reranking retrieved chunks.
+- More comprehensive evaluation datasets.
+- Automated groundedness evaluation.
+
+---
+
+# 13. Computer Vision Extension
+
+The project includes an Extended Track component for analyzing document images.
+
+The Computer Vision pipeline uses a YOLO-based document layout detection model.
+
+The model is:
 
 ```text
-[Add screenshot here]
+yolov8n-doclaynet.pt
 ```
 
-### Retrieved Sources
+It is based on the DocLayNet document-layout dataset.
+
+The detector can identify document regions such as:
+
+- Text
+- Title
+- Table
+- Picture
+- Caption
+- List-item
+- Section-header
+- Footnote
+- Formula
+
+---
+
+## 14. OCR
+
+OCR is applied to text-like detected regions.
+
+The system uses:
 
 ```text
-[Add screenshot here]
+Tesseract OCR
 ```
 
-### Image-Based Query
+The OCR process extracts text from detected regions such as:
+
+- Text
+- Title
+- Caption
+- List-item
+- Section-header
+- Footnote
+
+Non-text regions such as tables and pictures are classified separately instead of being directly passed through OCR.
+
+---
+
+## 15. Image-Based RAG
+
+The image pipeline combines Computer Vision and RAG.
+
+The workflow is:
 
 ```text
-[Add screenshot here]
+Uploaded Document Image
+          |
+          v
+YOLO Layout Detection
+          |
+          v
+Content-Type Classification
+          |
+          +------> Text Regions
+          |             |
+          |             v
+          |         OCR Extraction
+          |
+          +------> Tables / Pictures
+          |
+          v
+Image Content Description
+          |
+          v
+User Question + Image Context
+          |
+          v
+Semantic Retrieval
+          |
+          v
+Grounded LLM Generation
+          |
+          v
+Answer + Sources
 ```
 
-### YOLO Detection
+The detected image information is combined with the user's question and used to retrieve relevant information from the same Deep Learning vector store.
+
+This allows visual document information to participate in the RAG process.
+
+---
+
+# 16. Project Architecture
 
 ```text
-[Add screenshot here]
+                         +----------------------+
+                         |     User / Browser   |
+                         +----------+-----------+
+                                    |
+                                    v
+                         +----------------------+
+                         |       Frontend       |
+                         |   HTML/CSS/JavaScript |
+                         +----------+-----------+
+                                    |
+                                    | HTTP
+                                    v
+                         +----------------------+
+                         |       FastAPI        |
+                         |       Backend        |
+                         +----------+-----------+
+                                    |
+                    +---------------+---------------+
+                    |                               |
+                    v                               v
+          +-------------------+           +-------------------+
+          |     Retrieval     |           | Vision Component  |
+          |     ChromaDB      |           | YOLO + OCR        |
+          +---------+---------+           +---------+---------+
+                    |                               |
+                    +---------------+---------------+
+                                    |
+                                    v
+                         +----------------------+
+                         |   Retrieved Context  |
+                         +----------+-----------+
+                                    |
+                                    v
+                         +----------------------+
+                         |   Ollama / Llama 3.2 |
+                         +----------+-----------+
+                                    |
+                                    v
+                         +----------------------+
+                         | Grounded AI Response  |
+                         +----------------------+
 ```
 
 ---
 
-# 26. Assignment Requirements Coverage
+# 17. Technology Stack
+
+| Component | Technology |
+|---|---|
+| Programming Language | Python |
+| Backend | FastAPI |
+| Server | Uvicorn |
+| RAG Framework | LangChain |
+| PDF Processing | pypdf |
+| Text Splitting | RecursiveCharacterTextSplitter |
+| Embeddings | Sentence Transformers |
+| Embedding Model | all-MiniLM-L6-v2 |
+| Vector Database | ChromaDB |
+| LLM Runtime | Ollama |
+| LLM | Llama 3.2 3B |
+| Computer Vision | YOLO / Ultralytics |
+| OCR | Tesseract |
+| Frontend | HTML, CSS, JavaScript |
+| Testing | Pytest + FastAPI TestClient |
+
+---
+
+# 18. Project Structure
+
+```text
+rag-powered-assistant/
+│
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   │   └── routes/
+│   │   ├── core/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   ├── utils/
+│   │   └── main.py
+│   │
+│   ├── tests/
+│   ├── requirements.txt
+│   └── README.md
+│
+├── frontend/
+│   └── ...
+│
+├── notebooks/
+│   └── rag_pipeline.ipynb
+│
+├── README.md
+├── .gitignore
+└── run.bat
+```
+
+---
+
+# 19. Notebook
+
+The complete RAG development and evaluation process is documented in:
+
+```text
+notebooks/rag_pipeline.ipynb
+```
+
+The notebook contains:
+
+1. Document loading and inspection.
+2. PDF page parsing.
+3. Text cleaning.
+4. Chunking.
+5. Embedding generation.
+6. ChromaDB vector store creation.
+7. Semantic retrieval.
+8. Grounded prompt construction.
+9. Ollama LLM generation.
+10. Evaluation using 10 questions.
+11. Failure-case testing.
+12. Vector store configuration export.
+13. YOLO document-layout detection.
+14. OCR processing.
+15. Image-based RAG integration.
+
+The notebook serves as the experimental and evaluation part of the project, while the backend provides the application-facing API.
+
+---
+
+# 20. Backend
+
+The backend is implemented using FastAPI.
+
+It loads the required RAG components during application startup so that the vector store and generation components are initialized once rather than being recreated for every request.
+
+## Main Endpoints
+
+### Health Check
+
+```http
+GET /health
+```
+
+Used to verify that the backend is running correctly.
+
+Example:
+
+```bash
+curl http://localhost:8000/health
+```
+
+### Query
+
+```http
+POST /query
+```
+
+The endpoint accepts a user question, retrieves relevant document chunks, generates a grounded response, and returns the answer together with source information.
+
+Example:
+
+```bash
+curl -X POST http://localhost:8000/query ^
+  -H "Content-Type: application/json" ^
+  -d "{\"question\":\"What is backpropagation?\"}"
+```
+
+---
+
+# 21. Backend Setup
+
+Navigate to the backend directory:
+
+```bash
+cd backend
+```
+
+Create a virtual environment:
+
+```bash
+python -m venv .venv
+```
+
+Activate it on Windows:
+
+```bash
+.venv\Scripts\activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Start the FastAPI server:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+The API will be available locally at:
+
+```text
+http://localhost:8000
+```
+
+Interactive API documentation is available through FastAPI's generated documentation.
+
+---
+
+# 22. Environment Variables
+
+Configuration values should be stored in environment variables rather than hard-coded in the application.
+
+Example:
+
+```text
+BACKEND_URL=http://localhost:8000
+OLLAMA_MODEL=llama3.2:3b
+```
+
+An `.env.example` file is provided as a template for required environment variables.
+
+Sensitive credentials and local environment files should not be committed to GitHub.
+
+---
+
+# 23. Frontend
+
+The frontend provides a browser-based interface for interacting with the RAG assistant.
+
+It is implemented using:
+
+- HTML
+- CSS
+- JavaScript
+
+The frontend communicates with the FastAPI backend through HTTP requests.
+
+The backend URL is configurable so that the frontend does not need to depend on a hard-coded production server address.
+
+### Frontend Features
+
+- User question input.
+- Chat-style interaction.
+- Loading state while waiting for the backend.
+- Display of generated answers.
+- Display of retrieved source information.
+- Friendly error handling.
+
+---
+
+# 24. End-to-End Workflow
+
+The complete application follows this flow:
+
+```text
+User
+ |
+ v
+Frontend
+ |
+ v
+POST /query
+ |
+ v
+FastAPI Backend
+ |
+ v
+Semantic Retrieval
+ |
+ v
+ChromaDB
+ |
+ v
+Top Relevant Chunks
+ |
+ v
+Grounded Prompt
+ |
+ v
+Llama 3.2 via Ollama
+ |
+ v
+Answer + Sources
+ |
+ v
+Frontend
+```
+
+For the Extended Vision workflow, an uploaded document image is additionally processed by the YOLO and OCR components before the resulting information is incorporated into the retrieval and generation process.
+
+---
+
+# 25. Reproducibility
+
+The project separates the experimental pipeline from the application backend.
+
+The notebook documents the process used to:
+
+- Parse the source documents.
+- Create chunks.
+- Generate embeddings.
+- Build the vector database.
+- Evaluate retrieval and generation.
+- Export the configuration required by the backend.
+
+The backend uses the resulting persisted vector store instead of rebuilding the complete pipeline for every application startup.
+
+The exact configuration used for the final vector store is documented in the notebook and exported configuration.
+
+---
+
+# 26. Screenshots
+
+Screenshots of the working application can be added here.
+
+Suggested screenshots:
+
+### Application Interface
+
+```text
+[Add frontend screenshot here]
+```
+
+### API / Backend
+
+```text
+[Add FastAPI or application screenshot here]
+```
+
+### RAG Response with Sources
+
+```text
+[Add example grounded response screenshot here]
+```
+
+### Vision Extension
+
+```text
+[Add YOLO/OCR image-processing screenshot here]
+```
+
+---
+
+# 27. Assignment Requirements Coverage
 
 | Requirement | Implementation |
 |---|---|
-| Document loading | PyPDF |
-| Document inspection | PDF/page statistics in notebook |
-| Chunking | RecursiveCharacterTextSplitter |
-| Chunk size and overlap | 1000 / 200 |
+| Document loading | pypdf |
+| Document inspection | Notebook |
+| Chunking strategy | RecursiveCharacterTextSplitter |
+| Chunk size / overlap | 1000 / 200 |
 | Embeddings | all-MiniLM-L6-v2 |
-| Vector store | ChromaDB |
-| Persistence | Persistent ChromaDB |
-| Retrieval testing | 10 questions |
-| Grounded prompting | Explicit context-only prompt |
-| Evaluation | 10 reviewed questions |
-| Correctness evaluation | 90% |
-| Groundedness evaluation | 90% |
-| Failure cases | Out-of-domain questions |
-| Local LLM | Ollama + Llama 3.2 3B |
+| Persistent vector store | ChromaDB |
+| Retrieval | Semantic similarity search |
+| Grounded generation | Context-restricted LLM prompt |
+| LLM | Llama 3.2 3B through Ollama |
+| Evaluation | 10-question evaluation |
+| Correctness result | 90% |
+| Groundedness result | 90% |
+| Failure cases | Included |
+| Vision extension | YOLO document layout detection |
+| OCR | Tesseract |
 | Backend | FastAPI |
 | Health endpoint | `/health` |
 | Query endpoint | `/query` |
-| Tests | Pytest |
+| Testing | Pytest / TestClient |
 | Frontend | HTML/CSS/JavaScript |
-| Image extension | YOLO + OCR |
-| Image upload/camera | Gradio |
-| Document layout detection | YOLO DocLayNet |
-| Image-to-RAG integration | Combined image description + question |
-| Source citations | Document filename + page number |
+| Notebook | `notebooks/rag_pipeline.ipynb` |
+| Configuration export | JSON configuration |
 
 ---
 
-# 27. Limitations and Future Improvements
+# 28. Limitations and Future Improvements
 
-Current limitations include:
+The current system has several areas that can be improved:
 
-- Retrieval quality depends on the semantic similarity between the question and indexed chunks.
-- Some questions may require information that is not present in the retrieved context.
-- The evaluation dataset contains 10 manually reviewed questions, so it is useful for validation but not a comprehensive benchmark.
-- OCR accuracy can vary depending on image quality, lighting, orientation, and text size.
-- YOLO document-layout detection should be tested on several real images before deployment.
-- The local Llama model may produce unsupported information if the retrieved context is insufficient despite the grounding instructions.
-
-Potential improvements include:
-
-- Hybrid keyword + semantic retrieval.
-- Reranking retrieved chunks.
-- Better OCR preprocessing.
-- Larger and more diverse evaluation datasets.
-- Automated retrieval metrics such as Recall@K.
-- More robust citation formatting.
-- Additional document types.
-- Production-level authentication and deployment configuration.
+- Improve retrieval for comparison-style questions.
+- Add reranking after initial semantic retrieval.
+- Introduce hybrid retrieval using semantic and keyword search.
+- Add retrieval confidence thresholds.
+- Expand the evaluation dataset.
+- Automate correctness and groundedness evaluation.
+- Improve citation formatting.
+- Add better handling of tables and diagrams.
+- Improve OCR quality for complex document layouts.
+- Add more comprehensive frontend error handling.
+- Add deployment configuration for production environments.
 
 ---
 
-# 28. Conclusion
+# 29. Conclusion
 
-This project implements a complete RAG-powered Document Assistant for the Deep Learning domain.
+This project demonstrates a complete Retrieval-Augmented Generation pipeline for Deep Learning documents.
 
-The pipeline processes PDF documents, splits them into overlapping chunks, generates semantic embeddings, stores them in ChromaDB, retrieves relevant context, and generates grounded answers using a local Llama 3.2 3B model through Ollama.
+The system processes raw PDF documents, creates semantic embeddings, stores them in a persistent ChromaDB vector database, retrieves relevant context, and generates grounded answers using a local Llama model.
 
-The system was evaluated on 10 Deep Learning questions and achieved:
+The project also extends the traditional text-based RAG workflow with document-layout detection and OCR, allowing information extracted from document images to participate in the retrieval and generation process.
 
-```text
-Correctness: 90%
-Groundedness: 90%
-```
-
-The Extended Track adds computer vision capabilities using YOLO DocLayNet and OCR, allowing image information to be incorporated into the same retrieval and generation pipeline.
+The notebook provides the experimental, evaluation, and Computer Vision pipeline, while the FastAPI backend and web frontend provide the application layer for end-to-end interaction.
